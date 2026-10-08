@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capture watcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0F3; --panel:#FFFFFF; --ink:#16222C; --muted:#5B6B79; --line:#D5DBE1;
+  --run:#17805A; --idle:#7C8895; --warn:#B86E12; --bad:#B83A3A; --accent:#1C4E80; --accent-ink:#FFFFFF;
+  --log-bg:#F6F8FA; --sans:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#10171D; --panel:#18222B; --ink:#E6ECF1; --muted:#93A3B1; --line:#2A3946;
+  --run:#3CC592; --idle:#7E8C99; --warn:#E3A04A; --bad:#EE7B7B; --accent:#5B9BD8; --accent-ink:#0B141B; --log-bg:#121B23;}
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+main{max-width:760px;margin:0 auto;padding:20px 20px 64px}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;color:var(--muted);font-size:14px}
+.top b{font-weight:600;color:var(--ink)}
+
+/* hero: the state is the page */
+.hero{margin:40px 0 28px}
+.state{display:flex;align-items:center;gap:16px;margin:0;font-size:clamp(36px,8vw,56px);line-height:1.05;font-weight:600;letter-spacing:-.02em}
+.dot{flex:none;width:16px;height:16px;border-radius:50%;background:var(--idle)}
+.hero[data-s=running] .dot{background:var(--run);animation:ring 2.4s ease-out infinite}
+.hero[data-s=login] .dot{background:var(--warn)}
+.hero[data-s=error] .dot{background:var(--bad)}
+@keyframes ring{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--run) 55%,transparent)}70%,100%{box-shadow:0 0 0 14px transparent}}
+@media (prefers-reduced-motion:reduce){.hero[data-s=running] .dot{animation:none}}
+.detail{margin:10px 0 0 32px;color:var(--muted);max-width:60ch}
+
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin-top:16px}
+h2{margin:0 0 12px;font-size:16px;font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{all:unset;cursor:pointer;padding:8px 14px;font-size:14px;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--panel)}
+.seg button:focus-visible,button.btn:focus-visible,summary:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg[data-off=true]{opacity:.5;pointer-events:none}
+
+input[type=text],input[type=password],input[type=datetime-local],input[type=url]{
+  font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px;min-width:0}
+label{display:block;font-size:14px;color:var(--muted);margin:12px 0 4px}
+
+button.btn{font:inherit;font-weight:600;border-radius:8px;padding:11px 20px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.btn.danger{border-color:var(--bad);color:var(--bad)}
+button.btn:disabled{opacity:.5;cursor:not-allowed}
+.hint{color:var(--muted);font-size:14px;margin:12px 0 0}
+
+.signin{border-color:var(--warn)}
+.code{font:500 34px/1 var(--mono);letter-spacing:.12em;margin:12px 0}
+.signin ol{margin:0;padding-left:20px}
+.signin a{color:var(--accent)}
+
+.banner{border-color:var(--warn)}
+.banner p{margin:0 0 12px}
+
+.logbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.logbar h2{margin:0}
+.logbar label{margin:0;display:flex;gap:6px;align-items:center;font-size:14px}
+#log{background:var(--log-bg);border:1px solid var(--line);border-radius:8px;height:340px;overflow:auto;padding:10px 12px;font:12.5px/1.55 var(--mono)}
+#log div{white-space:pre-wrap;word-break:break-word}
+#log .err{color:var(--bad)}
+#log .key{color:var(--run)}
+#log .meta{color:var(--muted)}
+#log:empty::before{content:"Nothing yet. Log lines appear here once the watcher starts.";color:var(--muted);font-family:var(--sans)}
+
+details{margin-top:16px;color:var(--muted)}
+summary{cursor:pointer;font-size:14px;padding:6px 0}
+details .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 20px 20px;margin-top:6px;color:var(--ink)}
+.msg{min-height:1.4em;font-size:14px;margin:10px 0 0}
+.msg.bad{color:var(--bad)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><b>Capture watcher</b><span>Outlook capture mails to the Excel sheet</span></div>
+
+  <div class="hero" id="hero" data-s="idle" aria-live="polite">
+    <h1 class="state"><span class="dot"></span><span id="stateWord">Connecting</span></h1>
+    <p class="detail" id="stateDetail"></p>
+  </div>
+
+  <section class="banner" id="resume" hidden>
+    <p id="resumeText"></p>
+    <div class="row">
+      <button class="btn primary" id="resumeBtn">Resume</button>
+      <button class="btn" id="dismissBtn">Dismiss</button>
+    </div>
+  </section>
+
+  <section id="control">
+    <h2>Start</h2>
+    <div class="row">
+      <div class="seg" id="seg" role="group" aria-label="Where to start filling">
+        <button type="button" data-mode="now" aria-pressed="true">From now</button>
+        <button type="button" data-mode="custom" aria-pressed="false">From a set time</button>
+      </div>
+      <input type="datetime-local" id="sinceInput" hidden aria-label="Start time">
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn primary" id="startBtn">Start watching</button>
+      <button class="btn danger" id="stopBtn" hidden>Stop</button>
+    </div>
+    <p class="hint" id="startHint">Only mails received after the start time are written to the sheet. Rows already in the sheet are never duplicated.</p>
+    <p class="msg" id="actionMsg" role="status"></p>
+  </section>
+
+  <section class="signin" id="signin" hidden>
+    <h2>Sign in to Microsoft</h2>
+    <ol>
+      <li>Open <a id="signinLink" target="_blank" rel="noopener">the Microsoft sign-in page</a>.</li>
+      <li>Enter this code and sign in with the work account that owns the mailbox:</li>
+    </ol>
+    <div class="code" id="code"></div>
+    <button class="btn" id="copyBtn">Copy code</button>
+    <p class="hint">The watcher starts as soon as you finish. The code expires after about 15 minutes.</p>
+  </section>
+
+  <section>
+    <div class="logbar">
+      <h2>Log</h2>
+      <label><input type="checkbox" id="showChecks"> Show sheet checks</label>
+    </div>
+    <div id="log" tabindex="0" role="log" aria-label="Watcher log"></div>
+  </section>
+
+  <details id="settings">
+    <summary>Connection settings</summary>
+    <div class="box">
+      <label for="urlInput">Backend address</label>
+      <input type="url" id="urlInput" placeholder="https://capture-watcher-api.onrender.com" style="width:100%">
+      <label for="keyInput">Access key</label>
+      <input type="password" id="keyInput" autocomplete="off" style="width:100%">
+      <div class="row" style="margin-top:16px"><button class="btn primary" id="saveBtn">Save and connect</button></div>
+      <p class="msg" id="settingsMsg"></p>
+    </div>
+  </details>
+</main>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const store = {
+  get(k){ try { return localStorage.getItem(k) } catch { return null } },
+  set(k,v){ try { localStorage.setItem(k,v) } catch {} },
+  del(k){ try { localStorage.removeItem(k) } catch {} }
+};
+
+let cfg = { url: store.get("cw.url") || "", key: store.get("cw.key") || "" };
+let status = null, conn = "unknown", everConnected = false;
+let lines = [], lastSeq = 0;
+let mode = "now", working = false, polling = false, failures = 0;
+
+const configured = () => cfg.url && cfg.key;
+const base = () => cfg.url.replace(/\/+$/, "");
+
+async function api(path, { method = "GET", body, timeout = 20000 } = {}) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeout);
+  try {
+    const res = await fetch(base() + path, {
+      method, signal: ctl.signal,
+      headers: { "Content-Type": "application/json", "X-API-Key": cfg.key },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!res.ok) {
+      let msg = res.statusText;
+      try { msg = (await res.json()).detail || msg } catch {}
+      const e = new Error(msg); e.status = res.status; throw e;
+    }
+    return await res.json();
+  } finally { clearTimeout(t); }
+}
+
+/* free hosts sleep: poll /health until the server answers */
+async function wake(limitMs = 120000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < limitMs) {
+    try {
+      const r = await fetch(base() + "/health", { signal: AbortSignal.timeout(15000) });
+      if (r.ok) return;
+    } catch {}
+    await sleep(3000);
+  }
+  throw new Error("The server did not wake up within 2 minutes. Check the backend on Render.");
+}
+
+const fmt = iso => iso ? new Date(iso).toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+function dur(iso) {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 90) return "under a minute";
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + " min";
+  const h = Math.floor(m / 60);
+  return h < 48 ? `${h} h ${m % 60} min` : `${Math.floor(h / 24)} days ${h % 24} h`;
+}
+
+/* ---------------- polling ---------------- */
+async function poll() {
+  if (polling || !configured()) { render(); return; }
+  polling = true;
+  try {
+    status = await api("/api/status");
+    conn = "ok"; everConnected = true; failures = 0;
+    if (status.running) {
+      const cp = status.checkpoint || status.since;
+      if (cp) store.set("cw.checkpoint", cp);
+    }
+    const l = await api(`/api/logs?after=${lastSeq}`);
+    if (l.seq < lastSeq) { lines = []; lastSeq = 0; }   // server restarted, numbering began again
+    else if (l.lines.length) { lines = lines.concat(l.lines).slice(-1500); lastSeq = l.seq; }
+  } catch (e) {
+    failures++;
+    conn = e.status === 401 || e.status === 503 ? "auth" : "offline";
+    if (conn === "auth") status = null;
+    conn_msg = e.message;
+  } finally { polling = false; }
+  render();
+}
+let conn_msg = "";
+
+/* ---------------- render ---------------- */
+function render() {
+  const hero = $("#hero"), word = $("#stateWord"), detail = $("#stateDetail");
+  const running = !!(status && status.running);
+  let s = "idle", w = "Stopped", d = "Press Start to begin filling from the time you choose.";
+
+  if (!configured()) { w = "Not connected"; d = "Enter your backend address and access key below."; $("#settings").open = true; }
+  else if (conn === "auth") { s = "error"; w = "Access denied"; d = conn_msg + ". Check the access key in Connection settings."; }
+  else if (conn === "offline" && !status) {
+    s = "idle"; w = everConnected ? "Server unreachable" : "Waking the server";
+    d = everConnected ? "Retrying every few seconds."
+        : "A sleeping free server takes up to a minute to start. This page keeps trying.";
+  }
+  else if (running && status.login) { s = "login"; w = "Waiting for sign-in"; d = "Finish the Microsoft sign-in below and the watcher will begin."; }
+  else if (running) {
+    s = "running"; w = "Running";
+    d = `Filling mails received after ${fmt(status.since)}. Running for ${dur(status.started_at)}.`;
+  } else if (status) {
+    if (status.last_exit_code) { s = "error"; w = "Stopped with an error"; d = `The script exited with code ${status.last_exit_code}. The last log lines say why.`; }
+  }
+  if (working && !running) { w = working; s = "idle"; d = ""; }
+
+  hero.dataset.s = s; word.textContent = w; detail.textContent = d; detail.hidden = !d;
+
+  /* controls */
+  const canAct = configured() && conn === "ok" && !working;
+  $("#startBtn").hidden = running; $("#stopBtn").hidden = !running;
+  $("#startBtn").disabled = !configured() || working;
+  $("#stopBtn").disabled = !canAct;
+  $("#seg").dataset.off = String(running);
+  $("#sinceInput").hidden = mode !== "custom" || running;
+  $("#startHint").hidden = running;
+
+  /* sign-in card */
+  const li = running && status.login;
+  $("#signin").hidden = !li;
+  if (li) {
+    $("#code").textContent = status.login.code;
+    try {
+      const u = new URL(status.login.url);
+      if (/(^|\.)(microsoft\.com|microsoftonline\.com)$/.test(u.hostname)) $("#signinLink").href = u.href;
+    } catch {}
+  }
+
+  /* resume banner: it was running (user never pressed Stop) but the server lost the process */
+  const cp = store.get("cw.checkpoint");
+  const lost = store.get("cw.want") === "1" && conn === "ok" && status && !running && !working;
+  $("#resume").hidden = !lost;
+  if (lost) {
+    $("#resumeText").textContent = cp
+      ? `The watcher stopped without you pressing Stop. The server probably restarted. Mails received after ${fmt(cp)} may be waiting. Rows already in the sheet are skipped automatically.`
+      : "The watcher stopped without you pressing Stop. The server probably restarted.";
+    $("#resumeBtn").textContent = cp ? `Resume from ${fmt(cp)}` : "Start from now";
+    $("#resumeBtn").dataset.since = cp || "";
+  }
+
+  renderLog();
+}
+
+function renderLog() {
+  const box = $("#log"), show = $("#showChecks").checked;
+  const near = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  const vis = lines.filter(x => show || !x.t.includes("SHEET CHECK")).slice(-400);
+  const sig = vis.length + ":" + (vis.length ? vis[vis.length - 1].n : 0) + ":" + show;
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.replaceChildren(...vis.map(x => {
+    const d = document.createElement("div");
+    d.textContent = x.t;                       // mail subjects are untrusted: text only
+    if (/ERROR|giving up|Traceback|exited with code [1-9]/.test(x.t)) d.className = "err";
+    else if (/^\[backend\]/.test(x.t)) d.className = "meta";
+    else if (/\bwrote \d+ row|coloured|Mail: /.test(x.t)) d.className = "key";
+    return d;
+  }));
+  if (near) box.scrollTop = box.scrollHeight;
+}
+
+/* ---------------- actions ---------------- */
+function setMsg(t, bad) { const m = $("#actionMsg"); m.textContent = t || ""; m.className = "msg" + (bad ? " bad" : ""); }
+
+async function startWatcher(sinceIso) {
+  if (working) return;
+  setMsg("");
+  try {
+    working = "Waking the server"; render();
+    await wake();
+    working = "Starting"; render();
+    await api("/api/start", { method: "POST", body: { since: sinceIso || null }, timeout: 30000 });
+    store.set("cw.want", "1");
+    lastSeq = 0; lines = [];
+    working = false; await poll();
+  } catch (e) {
+    working = false; setMsg(e.message, true); render();
+  }
+}
+
+$("#startBtn").onclick = () => {
+  if (mode === "custom") {
+    const v = $("#sinceInput").value;
+    if (!v) { setMsg("Pick the date and time to start from.", true); return; }
+    startWatcher(new Date(v).toISOString());
+  } else startWatcher(null);
+};
+$("#resumeBtn").onclick = () => startWatcher($("#resumeBtn").dataset.since || null);
+$("#dismissBtn").onclick = () => { store.del("cw.want"); render(); };
+
+$("#stopBtn").onclick = async () => {
+  working = "Stopping"; setMsg(""); render();
+  try {
+    await api("/api/stop", { method: "POST" });
+    store.del("cw.want");
+  } catch (e) { setMsg(e.message, true); }
+  working = false; await poll();
+};
+
+$("#seg").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  mode = b.dataset.mode;
+  document.querySelectorAll("#seg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  if (mode === "custom" && !$("#sinceInput").value) {
+    const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    $("#sinceInput").value = d.toISOString().slice(0, 16);
+  }
+  render();
+});
+
+$("#copyBtn").onclick = async () => {
+  try { await navigator.clipboard.writeText($("#code").textContent); $("#copyBtn").textContent = "Copied"; }
+  catch { $("#copyBtn").textContent = "Select the code and copy it"; }
+  setTimeout(() => $("#copyBtn").textContent = "Copy code", 2000);
+};
+
+$("#showChecks").onchange = () => { $("#log").dataset.sig = ""; renderLog(); };
+
+$("#saveBtn").onclick = async () => {
+  const url = $("#urlInput").value.trim(), key = $("#keyInput").value.trim();
+  const m = $("#settingsMsg");
+  if (!/^https?:\/\//.test(url) || !key) { m.textContent = "Enter the full backend address (https://…) and the access key."; m.className = "msg bad"; return; }
+  cfg = { url, key }; store.set("cw.url", url); store.set("cw.key", key);
+  status = null; conn = "unknown"; everConnected = false; lines = []; lastSeq = 0; failures = 0;
+  m.textContent = "Saved. Connecting…"; m.className = "msg";
+  await poll();
+  if (conn === "ok") { m.textContent = "Connected."; $("#settings").open = false; }
+  else m.textContent = conn === "auth" ? "The server answered, but the access key is wrong." : "No answer yet. If the server was asleep it keeps trying.";
+  if (conn !== "ok") m.className = "msg bad";
+};
+
+$("#urlInput").value = cfg.url; $("#keyInput").value = cfg.key;
+render(); poll();
+setInterval(poll, 3000);
+setInterval(() => { if (status && status.running) render(); }, 30000);   // keeps "running for" fresh
+</script>
+</body>
+</html>

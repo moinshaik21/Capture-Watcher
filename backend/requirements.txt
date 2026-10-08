@@ -1,0 +1,7 @@
+fastapi>=0.110
+uvicorn>=0.29
+msal>=1.28
+requests>=2.31
+beautifulsoup4>=4.12
+python-dateutil>=2.9
+tzdata
