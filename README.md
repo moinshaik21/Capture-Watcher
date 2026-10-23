@@ -1,6 +1,6 @@
 # Capture Watcher
 
-A lightweight web-based control panel for managing an automated email-to-spreadsheet watcher. The application provides **Start**, **Stop**, and live log monitoring through a Netlify-hosted frontend, with a FastAPI backend deployed on Render.
+A lightweight web-based control panel for managing an automated email-to-spreadsheet watcher. The application provides **Start**, **Stop**, and live log monitoring through a Netlify-hosted frontend, with a DRF backend deployed on Render.
 
 ## Architecture
 
@@ -47,7 +47,7 @@ A lightweight web-based control panel for managing an automated email-to-spreads
 |---|---|
 | Frontend | HTML, CSS, JavaScript |
 | Frontend Hosting | Netlify |
-| Backend API | Python, FastAPI |
+| Backend API | Python, DRF |
 | ASGI Server | Uvicorn |
 | Backend Hosting | Render |
 | Watcher | `watcher_v5.py` |
@@ -237,7 +237,7 @@ The watcher is responsible for applying the timestamp filter and updating the ta
 
 Capture Watcher provides a simple browser-based interface for controlling an existing automated email-monitoring workflow.
 
-By combining a Netlify frontend with a FastAPI backend on Render, it enables users to configure a monitoring start time, launch or stop the watcher, complete mailbox authentication, and inspect execution logs without manually starting the Python script from a terminal.
+By combining a Netlify frontend with a DRF backend on Render, it enables users to configure a monitoring start time, launch or stop the watcher, complete mailbox authentication, and inspect execution logs without manually starting the Python script from a terminal.
 
 The original `watcher_v5.py` remains responsible for the core email-processing and spreadsheet-update logic.
 
@@ -245,5 +245,5 @@ The original `watcher_v5.py` remains responsible for the core email-processing a
 
 **Project:** Capture Watcher  
 **Frontend:** Netlify  
-**Backend:** Render + FastAPI  
+**Backend:** Render + DRF  
 **Watcher Script:** `watcher_v5.py`
